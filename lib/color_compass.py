@@ -346,3 +346,15 @@ def twisted_product(stab_binary, pauli_binary):
     L = int(len(stab_binary)/2)
     return (stab_binary[:L]@pauli_binary[L:] + stab_binary[L:]@pauli_binary[:L]) % 2
 
+def compass_to_surface(dimX,dimZ,start='X'):
+    if start == 'X':
+        first_two_cells = [-1,1]
+    elif start == 'Z':
+        first_two_cells = [1,-1]
+    first_row = (first_two_cells*int(np.ceil(dimZ/2)))
+    first_two_rows = first_row[:dimZ-1] + first_row[1:dimZ]
+    whole_lattice = first_two_rows*int(np.ceil(dimX/2))
+    whole_lattice = whole_lattice[:(dimZ-1)*(dimX-1)]
+    lat = Lattice2D(dimX, dimZ)
+    lat.color_lattice(whole_lattice)
+    return lat
