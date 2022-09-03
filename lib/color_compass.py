@@ -1,4 +1,4 @@
-### lib/color_compass_code.py ###
+### lib/color_compass.py ###
 import stim
 import numpy as np
 from pymatching import Matching
