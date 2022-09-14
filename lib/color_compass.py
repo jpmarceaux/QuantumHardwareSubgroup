@@ -183,8 +183,8 @@ class Lattice2D():
             # make new gauge operator and update gauge group 
             gauge = ['_'] * dimX*dimZ
             for k in range(0, j+1):
-                gauge[i + k*dimZ] = 'Z'
-                gauge[i + k*dimZ + 1] = 'Z'
+                gauge[k + i*dimZ] = 'Z'
+                gauge[k + i*dimZ + 1] = 'Z'
             Gx_new = []
             for g in Gx:
                 if twisted_product(pauli2vector(''.join(g)), pauli2vector(''.join(gauge))) == 0:
