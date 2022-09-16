@@ -348,9 +348,9 @@ def twisted_product(stab_binary, pauli_binary):
 
 def compass_to_surface(dimX,dimZ,start='X'):
     if start == 'X':
-        first_two_cells = [-1,1]
-    elif start == 'Z':
         first_two_cells = [1,-1]
+    elif start == 'Z':
+        first_two_cells = [-1,1]
     first_row = (first_two_cells*int(np.ceil(dimZ/2)))
     first_two_rows = first_row[:dimZ-1] + first_row[1:dimZ]
     whole_lattice = first_two_rows*int(np.ceil(dimX/2))
