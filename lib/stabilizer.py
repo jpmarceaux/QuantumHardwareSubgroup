@@ -3,75 +3,129 @@ import numpy as np
 import stim, stimcirq, cirq
 from typing import Dict, List, Tuple
 
-def stabilizer_circuits(stabilizers, logicals, noise, rounds=1, construction='cnot', perfect_encoding=True, perfect_logical_meas=True):
+def stabilizer_circuits(lat, encoding, after_encode_unitary, noise, rounds=1, meas_logical_via_ancilla=False):
     '''
-    Output full stabilizer circuits starting from initial logical states corresponding to the input logical operators (X & Z)
+    
+    Output full stabilizer circuits starting from difference 
     Implemented for k=1 logical qubit
     
     Input:
-        stabilizers: a list of stabilizers written in terms of {I/_,X,Y,Z}
-        logicals: logical operators X and Z
+        lat: compass code lattice 
+        
+        encoding: starting by just resetting or performing full encoding, choose one from {reset_X, reset_Z, encode_Z}
+        
+        after_encode_unitary: to go from 0 -> 1 or + -> -
+        
         noise: circuit level noise (gate_noise1, gate_noise2, meas_noise)
         
-    To do:
-        - Add noisy encoding
-        
+        meas_logical_via_ancilla: keep this option for testing only, to be removed once no longer needed
     '''
+    
+    Sx, Sz, ncol = lat.getSx(), lat.getSz(), lat.dimZ
+    logical, logical_type = (lat.logicals[0],'X') if 'X' in encoding else (lat.logicals[1],'Z')
+    _, _, meas_noise = noise
+    
+    ### manual stabilizer check ###
+    # stabilizer_checks = stim.Circuit(f'''
+    #     H 9 11 10 12
+    #     {gate_noise1} 9 11 10 12
+    #     CX 9 3 10 5 11 7 2 13 4 15 8 14
+    #     {gate_noise2} 9 3 10 5 11 7 2 13 4 15 8 14
+    #     CX 9 0 10 2 11 4 1 13 3 15 7 14 
+    #     {gate_noise2} 9 0 10 2 11 4 1 13 3 15 7 14
+    #     CX 10 4 11 6 12 8 1 15 5 14 7 16
+    #     {gate_noise2} 10 4 11 6 12 8 1 15 5 14 7 16
+    #     CX 10 1 11 3 12 5 0 15 4 14 6 16
+    #     {gate_noise2} 10 1 11 3 12 5 0 15 4 14 6 16
+    #     H 9 11 10 12
+    #     {gate_noise1} 9 11 10 12
+    #     {meas_noise} 9 10 11 12 13 14 15 16
+    #     MR 9 10 11 12 13 14 15 16
+    # ''')
+    
     ### SET UP ###
-    gate_noise1,gate_noise2,meas_noise = noise
-    gadgets = measurement_gadgets(stabilizers,construction,gate_noise1,gate_noise2,meas_noise)
-    if perfect_logical_meas:
-        logical_gadgets = measurement_gadgets(logicals,construction)
-    else:    
-        logical_gadgets = measurement_gadgets(logicals,construction,gate_noise1,gate_noise2,meas_noise)
+    n_data = len(Sx[0])
+    n_stab_x = len(Sx)
+    n_stab_z = len(Sz)
+    n_stab = len(Sx) + len(Sz)
 
-    n_data = len(stabilizers[0])
-    n_stab = len(stabilizers)
+    stabilizer_checks = zigzag_stabilizer_checks(Sx, Sz, ncol, *noise)
+    logical_gadget = measurement_gadgets([logical],'cnot',*noise)[0]
 
-    detector_1st_round = [stim.Circuit(f'DETECTOR({n_data+i}, 0) rec[-1]') for i in range(n_stab)]
-    detector_nth_round = [stim.Circuit(f'DETECTOR({n_data+i}, 0) rec[-1] rec[-{1+n_stab}]') for i in range(n_stab)]
-
-    ### ENCODING ###
-    circuit_init = stim.Circuit(f'R ' + ' '.join(str(i) for i in range(n_data+n_stab)))
-    if perfect_encoding:
-        circuit_init += StabilizerCode(stabilizers).encoding_circuit(stim=True)
+    if logical_type == 'X':
+        detector_1st_round = [stim.Circuit(f'DETECTOR({n_data+i}, 0) rec[{i-n_stab}]') for i in range(n_stab_x)]
     else:
-        raise NotImplementedError('Noisy encoding not implemented')
+        detector_1st_round = [stim.Circuit(f'DETECTOR({n_data+i}, 0) rec[{i-n_stab}]') for i in range(n_stab_x,n_stab)]
+    detector_nth_round = [stim.Circuit(f'DETECTOR({n_data+i}, 0) rec[{i-n_stab}] rec[{i-2*n_stab}]') for i in range(n_stab)]
 
-    assert len(logicals) == 2
-    circuits = [circuit_init.copy(),circuit_init.copy()]
-    for i_log,circuit in enumerate(circuits):
-        ### 0th measurement to set up a superposition state ###
-        circuit.append('TICK')
-        circuit += logical_gadgets[(i_log+1)%2]
+    ### INITIALIZATION ###
+    circuit = stim.Circuit(f'R ' + ' '.join(str(i) for i in range(n_data,n_data+n_stab)))
+    if encoding == 'reset_X':
+        circuit += stim.Circuit(f'RX ' + ' '.join(str(i) for i in range(n_data)))
+    else:
+        circuit += stim.Circuit(f'R  ' + ' '.join(str(i) for i in range(n_data)))
+        if encoding == 'reset_Z':
+            pass
+        elif encoding == 'encode_Z':
+            circuit += StabilizerCode(Sx+Sz).encoding_circuit(stim=True)
+        else:
+            raise NotImplementedError(f'`{encoding}` is not implemented')
+    
+    circuit += gatestring_to_stimcircuit(after_encode_unitary)
+
+    ### 1st logical measurement via ancilla ###
+    if meas_logical_via_ancilla:
+        circuit += logical_gadget
         circuit.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], 0)
 
-        ### 1st logical measurement ###
-        circuit.append('TICK')
-        circuit += logical_gadgets[i_log]
-        circuit.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], 1)
+    ### STABILIZER CHECKS ###
+    # 1st round
+    circuit.append('TICK')
+    circuit += stabilizer_checks
 
-        ### stabilizer measurements ###
-        # 1st round
-        circuit.append('TICK')
-        for i,g in enumerate(gadgets):
-            circuit += g + detector_1st_round[i]
+    for detector in detector_1st_round:
+        circuit += detector
 
-        # nth round
-        if rounds > 1:
-            repeat_circuit = stim.Circuit('SHIFT_COORDS(0, 1)')
-            for i,g in enumerate(gadgets):
-                repeat_circuit += g + detector_nth_round[i]
+    # nth round
+    if rounds > 1:
+        repeat_circuit = stabilizer_checks.copy()
+        repeat_circuit += stim.Circuit('SHIFT_COORDS(0, 1)')
+        for detector in detector_nth_round:
+            repeat_circuit += detector
 
-            circuit += repeat_circuit*(rounds-1)
+        circuit += repeat_circuit*(rounds-1)
 
-        ### 2nd logical measurement ###
-        circuit.append('TICK')
-        circuit += logical_gadgets[i_log]
-        circuit.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], 1)
-    return circuits
+    ### MEASURE LOGICAL OPERATOR ###     
+    ### 2nd logical measurement ###
+    if meas_logical_via_ancilla:
+        circuit += logical_gadget
+        circuit.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], 0)
+    # OR measure logical directly from data
+    else:
+        if logical_type == 'X':
+            
+            if meas_noise: circuit += stim.Circuit(f'Z{meas_noise[1:]} '+' '.join(str(i) for i in range(n_data)))
+            circuit.append('MX', range(n_data))
+            
+            for j,sx in enumerate(Sx):
+                targets = [f'rec[-{n_stab+n_data-j}]']+[f'rec[-{i}]' for i in n_data-char_locations(sx,'X')]
+                circuit += stim.Circuit(f'DETECTOR({n_data+j}, 1) '+' '.join(targets))
+                
+        else:
+            
+            if meas_noise: circuit += stim.Circuit(f'{meas_noise} '+' '.join(str(i) for i in range(n_data)))
+            circuit.append('M', range(n_data))
+            
+            for j,sz in enumerate(Sz):
+                targets = [f'rec[-{n_stab_z+n_data-j}]']+[f'rec[-{i}]' for i in n_data-char_locations(sz,'Z')]
+                circuit += stim.Circuit(f'DETECTOR({n_data+n_stab_x+j}, 1) '+' '.join(targets))
 
-def measurement_gadgets(stabilizers_in, construction='direct', gate_noise1=None, gate_noise2=None, meas_noise=None):
+        obs_targets = [stim.target_rec(-i) for i in n_data-char_locations(logical,logical_type)]
+        circuit.append('OBSERVABLE_INCLUDE', obs_targets, 0)
+    
+    return circuit
+
+def measurement_gadgets(stabilizers_in, construction='cnot', gate_noise1=None, gate_noise2=None, meas_noise=None):
     """
     Input:
         stabilizers: a list of stabilizers written in terms of {I/_,X,Y,Z}
@@ -129,7 +183,6 @@ def measurement_gadgets(stabilizers_in, construction='direct', gate_noise1=None,
             if meas_noise:
                 aS += f'\n{meas_noise} {ancilla + N}'
             aS += f'\nMR {ancilla + N}'
-            # print('\n'.join([bS,bH,mid,aH,aS]))
             gadgets.append(stim.Circuit('\n'.join([bS,bH,mid,aH,aS])))
 
         elif construction == 'hadamard':
@@ -167,10 +220,94 @@ def measurement_gadgets(stabilizers_in, construction='direct', gate_noise1=None,
             if meas_noise:
                 after += f'\n{meas_noise} {ancilla + N}'
             after += f'\nMR {ancilla + N}'
-            # print('\n'.join([bS,bH,mid,aH,aS]))
             gadgets.append(stim.Circuit('\n'.join([before,mX,mY,mZ,after])))
             
     return gadgets
+
+def zigzag_stabilizer_checks(Sx, Sz, ncol, gate_noise1=None, gate_noise2=None, meas_noise=None):
+    """
+    Input:
+        Sx: a list of X-type stabilizers
+        Sz: a list of Z-type stabilizers
+        ncol: number of columns in lattice
+        gate_noise1: 1-qubit gate noise channel
+        gate_noise2: 2-qubit gate noise channel
+        meas_noise: measurement noise channel
+    Output:
+        Measurement gadgets in stim following the zigzag pattern
+    
+    How it works:
+        - For CSS code only
+        - Start measuring from the upper left corner of all stabilizers (X then Z)
+        - CNOT on gauge operators one after the other in zigzag pattern (X | and Z --)
+        - X-type stabilizers measured via H on ancilla and CX from ancilla to data
+        - Z-type stabilizers measured via CX from data to ancilla
+        
+    first N qubits as data qubits
+    remaining as ancilla qubits
+    """
+    # starting points for all stabilizers
+    x_start = np.array([stab.index('X') for stab in Sx])
+    z_start = np.array([stab.index('Z') for stab in Sz])
+    n_stab_x = len(Sx)
+    n_stab = len(Sx)+len(Sz)
+    n_data = len(Sx[0])
+    max_length_x = max([sx.count('X') for sx in Sx])//2
+    max_length_z = max([sz.count('Z') for sz in Sz])//2
+    
+    ### X-type
+    
+    # Hadamards
+    H_targets = ' '.join(str(i) for i in range(n_data,n_data+n_stab_x))
+    circ_str = 'H ' + H_targets
+    if gate_noise1: circ_str += f'\n{gate_noise1} ' + H_targets     
+    circ_str += '\nTICK'
+    
+    for _ in range(max_length_x):
+        targets = ['','']
+        for i in range(len(x_start)):
+            i1, i2 = x_start[i], x_start[i]+ncol
+            try:
+                if Sx[i][i1] + Sx[i][i2] == 'XX':
+                    targets[0] += f' {n_data+i} {i1}'
+                    targets[1] += f' {n_data+i} {i2}'
+            except:
+                pass
+        for target in targets:
+            circ_str += '\nCX' + target
+            if gate_noise2: circ_str += f'\n{gate_noise2}' + target
+            circ_str += '\nTICK'
+        x_start += 1
+        
+    # Hadamards again
+    circ_str += '\nH ' + H_targets
+    if gate_noise1: circ_str += f'\n{gate_noise1} ' + H_targets
+    circ_str += '\nTICK'
+    
+    ### Z-type
+    for _ in range(max_length_z):
+        targets = ['','']
+        for i in range(len(z_start)):
+            i1, i2 = z_start[i], z_start[i]+1
+            try:
+                if Sz[i][i1] + Sz[i][i2] == 'ZZ':
+                    targets[0] += f' {i1} {n_data+n_stab_x+i}'
+                    targets[1] += f' {i2} {n_data+n_stab_x+i}'
+            except:
+                pass
+        for target in targets:
+            circ_str += '\nCX' + target
+            if gate_noise2: circ_str += f'\n{gate_noise2}' + target
+            circ_str += '\nTICK'
+        z_start += ncol
+        
+    # Measure all ancillas
+    M_targets = ' '.join(str(i) for i in range(n_data,n_data+n_stab))
+    # M_targets = '9 15 11 16 13 10 14 12'
+    if meas_noise: circ_str += f'\n{meas_noise} ' + M_targets
+    circ_str += '\nMR ' + M_targets
+    return stim.Circuit(circ_str)
+
 
 '''
 /////
@@ -416,3 +553,21 @@ def _transfer_to_standard_form(
 ---------------------------
 /////
 '''
+
+def gatestring_to_stimcircuit(gate_string):
+    loc = {}
+    for i,gate in enumerate(gate_string):
+        if gate == 'I' or gate == '_':
+            continue
+        if gate not in loc:
+            loc[gate] = ''
+        loc[gate] += f' {i}'
+    return stim.Circuit('\n'.join([g+l for g,l in zip(loc.keys(),loc.values())]))
+
+def char_locations(string,char):
+    '''Return locations where `char` appears in `string` '''
+    locs = []
+    for loc,c in enumerate(string):
+        if c == char:
+            locs.append(loc)
+    return np.array(locs)

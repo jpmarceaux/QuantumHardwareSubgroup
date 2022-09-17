@@ -170,3 +170,12 @@ def logical_error_rate_noisy_graph(circuit,detector_parts,actual_observable_part
         if not np.array_equal(actual, predicted):
             num_logical_errors += 1
     return num_logical_errors / num_shots
+
+def estimate_pL_noisy_graph(circuit, num_shots):
+    '''Include the sampling process'''
+    shots = circuit.compile_detector_sampler().sample(num_shots, append_observables=True)
+    detector_parts = shots[:, :circuit.num_detectors]
+    observables = shots[:, circuit.num_detectors:]
+    pL_no_correction = observables.flatten().mean()
+    pL_noisy = logical_error_rate_noisy_graph(circuit,detector_parts,observables)
+    return pL_no_correction, pL_noisy
