@@ -1,0 +1,6 @@
+cirq==1.0.0
+stim==1.9.0
+stimcirq==1.9.0
+pymatching==0.7.0
+termcolor==2.0.1
+ipykernel==6.15.3

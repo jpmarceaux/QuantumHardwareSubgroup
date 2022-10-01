@@ -3,7 +3,7 @@ import numpy as np
 import stim, stimcirq, cirq
 from typing import Dict, List, Tuple
 
-def stabilizer_circuits(lat, encoding, after_encode_unitary, noise, rounds=1, meas_logical_via_ancilla=False):
+def stabilizer_circuits(lat, encoding, after_encode_unitary, noise, rounds=1, meas_logical_via_ancilla=False,meas_stab_zigzag=True):
     '''
     
     Output full stabilizer circuits starting from difference 
@@ -49,7 +49,12 @@ def stabilizer_circuits(lat, encoding, after_encode_unitary, noise, rounds=1, me
     n_stab_z = len(Sz)
     n_stab = len(Sx) + len(Sz)
 
-    stabilizer_checks = zigzag_stabilizer_checks(Sx, Sz, ncol, *noise)
+    if meas_stab_zigzag:
+        stabilizer_checks = zigzag_stabilizer_checks(Sx, Sz, ncol, *noise)
+    else:
+        stabilizer_checks = stim.Circuit()
+        for g in measurement_gadgets(lat.getS(),'cnot',*noise):
+            stabilizer_checks += g
     logical_gadget = measurement_gadgets([logical],'cnot',*noise)[0]
 
     if logical_type == 'X':
