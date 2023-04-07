@@ -149,6 +149,7 @@ def measurement_gadgets(stabilizers_in, construction='cnot', gate_noise1=None, g
     
     # allow both '_' and 'I' in stabilizers
     stabilizers = [s.replace('_','I') for s in stabilizers_in] if '_' in stabilizers_in[0] else stabilizers_in.copy()
+    print(stabilizers)
     
     N = len(stabilizers[0])
     gadgets = []
