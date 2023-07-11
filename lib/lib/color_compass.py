@@ -48,9 +48,11 @@ class Lattice2D():
             face_string = ''
             for j in range(dimZ-1):
                 if(self.colors[i*(dimZ-1) + j] == -1):
-                    face_string += ' | '+colored(' O ', 'red')
+                    # face_string += ' | '+colored(' O ', 'red')
+                    face_string += ' | ' + ' ░ '
                 elif(self.colors[i*(dimZ-1) + j] == +1):
-                    face_string += ' | '+colored(' ^ ', 'blue')
+                    #face_string += ' | '+colored(' ^ ', 'blue')
+                    face_string += ' | ' + ' ▓ '
                 elif(self.colors[i*(dimZ-1) + j] == 0):
                     face_string += ' |    '
                 else:
