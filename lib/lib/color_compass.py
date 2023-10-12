@@ -274,6 +274,18 @@ class Lattice2D():
 
         return is_corrected
     
+# def bacon_shor_group_v2(dimX, dimZ):
+#     """
+#     Return the Bacon-Shor Code stabilizers
+
+#     Params:
+#     * dimX - X-dimension of lattice
+#     * dimZ - Z-dimensoin of lattice
+#     """
+#     Xs = []
+#     Zs = []
+#     for j in range()
+    
 def bacon_shor_group(dimX, dimZ):
     """
     return the BS code stabilizers
@@ -293,6 +305,29 @@ def bacon_shor_group(dimX, dimZ):
             s[j+(i+1)*dimZ] = 'X'
         Xs.append(''.join(s))
     return [Xs, Zs]
+
+# def bsgauge_group(dimX, dimZ):
+#     Xs = []
+#     Zs = []
+
+#     # X-type gauge operators
+#     for i in range(dimX):
+#         for j in range(dimZ - 1):
+#             s = list('_' * dimX * dimZ)
+#             s[i * dimZ + j] = 'X'
+#             s[i * dimZ + (j + 1)] = 'X'
+#             Xs.append(''.join(s))
+    
+#     # Z-type gauge operators
+#     for i in range(dimX - 1):
+#         for j in range(dimZ):
+#             s = list('_' * dimX * dimZ)
+#             s[i * dimZ + j] = 'Z'
+#             s[(i + 1) * dimZ + j] = 'Z'
+#             Zs.append(''.join(s))
+
+#     return [Xs, Zs]
+
 
 def bsgauge_group(dimX, dimZ):
     """
