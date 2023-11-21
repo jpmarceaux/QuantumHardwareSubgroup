@@ -88,6 +88,14 @@ class Lattice2D():
     def getSz(self):
         return self.stabs[1]
     
+    def pcheckZ(self):
+        """returns the Z parity check matrix"""
+        return np.vstack([pauli2vector(s) for s in self.getSz()])
+        
+    def pcheckX(self):
+        """returns the X parity check matrix"""
+        return np.vstack([pauli2vector(s) for s in self.getSx()])
+    
     def getDims(self):
         return (self.dimX, self.dimZ)
     
