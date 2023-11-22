@@ -384,12 +384,26 @@ def pauli2vector(pstr):
             bstr[idx+len(pstr)] = 1
     return np.array(bstr)
 
+
+"""get the syndrome of the pauli operator """
+
 def twisted_product(stab_binary, pauli_binary):
     """
     take twisted product of stabilizer with pauli to calculate commutator 
     """
-    L = int(len(stab_binary)/2)
-    return (stab_binary[:L]@pauli_binary[L:] + stab_binary[L:]@pauli_binary[:L]) % 2
+    
+    if len(stab_binary.shape) == 1:
+        # if we have only 1 stabilizer
+        L = int(len(stab_binary)/2)
+        return (stab_binary[:L]@pauli_binary[L:] + stab_binary[L:]@pauli_binary[:L]) % 2
+    else:
+        # if we have a parity check 
+        L = int(stab_binary.shape[1]/2)
+        assert stab_binary.shape[1] == len(pauli_binary)
+        syndrome = []
+        for i in range(stab_binary.shape[0]):
+            syndrome.append((stab_binary[i, :L]@pauli_binary[L:] + stab_binary[i, L:]@pauli_binary[:L]) % 2)
+        return np.array(syndrome)
 
 def compass_to_surface(dimX,dimZ,start='X'):
     if start == 'X':
