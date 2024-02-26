@@ -14,6 +14,7 @@ from tqdm import tqdm
 import scipy.stats as ss
 import pickle
 from pymatching import Matching
+import random
 from ldpc import bposd_decoder
 
 class Lattice2D():
@@ -293,38 +294,54 @@ class Lattice2D():
 
         return is_corrected
     
-def choose_gauge_fixing(dimX : int, dimY: int, type : List = None, region : List = None): 
+def choose_gauge_fixing(dimX : int, dimZ: int, type : List = None, region : List = None): 
     """ 
     Based on the type of gauge fixing specified, return something that reflects this
 
     Params:
     * dimX - Dimension of lattice in X direction
-    * dimY - Dimension of lattice in Y direction
+    * dimZ - Dimension of lattice in Z direction
     * type - 
         ^ +1 - Z-type 
         ^ 0 - no gauge fix
         ^ -1 - X-type
-        ^ Combine 
+        ^ Combine ('C') - Surface Code
         ^ None - Uniform
     * region - 
         ^ [C, N, S, E, W, NE, NW, SE, SW]
         ^ None - Uniform
     """
     dimX -= 1 
-    dimY -= 1
-    coloring = np.zeros((dimX, dimY), dtype=int)
+    dimZ -= 1
+    gauge_fix_block = np.zeros((dimX//2, dimZ//2))
+    full_gauge_fix = np.random.randint(-1, 2, size=(dimX, dimZ))
+    start_pos = {'C' : (dimX//4, dimZ//4), 'N' : (0, dimZ//4), 'S' : (dimX//2, dimZ//4), 'E' : (dimX//4, dimZ//2), 'W' : (dimX//4, 0),
+                 'NE' : (0, dimZ//2), 'NW' : (0, 0), 'SE' : (dimX//2, dimZ//2), 'SW' : (dimX//2, 0)}
+
+    if (region == None):
+        if (type == None):
+            full_gauge_fix = np.random.randint(-1, 2, size=dimX * dimZ)
+            return full_gauge_fix
+        elif (type == 'C'):
+            return np.random.choice([-1,1], size=(dimX * dimZ,))
+        else:
+            # Will change but leave as is for now
+            full_gauge_fix = np.full((dimX * dimZ, ), type)
+            return full_gauge_fix
+    else:
+        if (type == None):
+            full_gauge_fix = np.zeros((dimX, dimZ))
+            gauge_fix_block = np.random.randint(-1, 2, size=(dimX//2, dimZ//2))
+        elif (type == 'C'):
+            print(np.shape(compass_to_surface(dimX//2, dimZ//2)))
+            gauge_fix_block = np.reshape(compass_to_surface(dimX//2, dimZ//2).colors, (dimX//2, dimZ//2))
+        else:
+            gauge_fix_block = np.full((dimX//2, dimZ//2), type)
+        full_gauge_fix[start_pos[region][0] : start_pos[region][0] + gauge_fix_block.shape[0], start_pos[region][1] : start_pos[region][1] + gauge_fix_block.shape[1]] = gauge_fix_block
+        return np.reshape(full_gauge_fix, (dimX * dimZ,))
     
-"""Sample a random Pauli error
-    for now, I'll assume biased, symmetric, uncorrelated Pauli channel
-"""
-import random
-
-# def random_pauli_biased(num_qubits : int, rates : list)
-
-# def random_pauli_asym(num_qubits: int, dimX: int, dimZ: int, rates : list)
-
 def random_pauli(num_qubits : int, rates : list):
-    assert rates[0] + rates[1] + rates[2] <= 1, "Error rate must not exceed 1"""
+    assert rates[0] + rates[1] + rates[2] <= 1, "Error rate must not exceed 1"
     paulis = []
     for i in range(num_qubits):
         x = random.uniform(0, 1)
@@ -337,6 +354,51 @@ def random_pauli(num_qubits : int, rates : list):
         else:
             paulis.append('_')
     return ''.join(paulis)
+
+
+def random_pauli_asym(dimX: int, dimZ: int, rates : list, dir : str):
+    """
+    Params:
+    * dir - Can be one of the following
+        - Uniform ('U')
+        - Center ('C')
+        - North ('N')
+        - South ('S')
+        - East ('E')
+        - West ('W')
+        - North East ('NE')
+        - South East ('SE')
+        - North West ('NW')
+        - North East ('NE')
+
+    """
+    assert rates[0] + rates[1] + rates[2] <= 1, "Error rate must not exceed 1"
+    error_block = np.zeros((dimX//2, dimZ//2),dtype=str)
+    full_error = np.full((dimX, dimZ),'_',dtype=str)
+    start_pos = {'C' : (dimX//4, dimZ//4), 'N' : (0, dimZ//4), 'S' : (dimX//2, dimZ//4), 'E' : (dimX//4, dimZ//2), 'W' : (dimX//4, 0),
+                 'NE' : (0, dimZ//2), 'NW' : (0, 0), 'SE' : (dimX//2, dimZ//2), 'SW' : (dimX//2, 0)}
+    for i in range(dimX//2):
+        for j in range(dimZ//2):
+            x = random.uniform(0,1)
+            if x <= rates[0]: 
+                error_block[i][j] = 'X'
+            elif x <= rates[0] + rates[1]:
+                error_block[i][j] = 'Y'
+            elif x <= rates[0] + rates[1] + rates[2]:
+                error_block[i][j] = 'Z'
+            else:
+                error_block[i][j] = '_'
+    if (dir == 'U'):
+        return random_pauli(dimX * dimZ, rates)
+    full_error[start_pos[dir][0] : start_pos[dir][0] + error_block.shape[0], start_pos[dir][1] : start_pos[dir][1] + error_block.shape[1]] = error_block
+    return ''.join(list(np.reshape(full_error, (dimX * dimZ,))))
+
+def print_pauli_error(error_str, dimX, dimZ):
+    for i in range(dimX):
+        l = [error_str[i * dimX + j] for j in range(dimZ)]
+        print (' | '.join(l))
+        
+    
 
 def pcheck_clipZ(pcheck):
     """
