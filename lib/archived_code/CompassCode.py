@@ -373,7 +373,7 @@ def random_pauli_asym(dimX: int, dimZ: int, rates : list, dir : str):
 
     """
     assert rates[0] + rates[1] + rates[2] <= 1, "Error rate must not exceed 1"
-    error_block = np.zeros((dimX//2, dimZ//2),dtype=str)
+    error_block = np.zeros((dimX * 2//3, dimZ * 2//3),dtype=str)
     full_error = np.full((dimX, dimZ),'_',dtype=str)
     start_pos = {'C' : (dimX//4, dimZ//4), 'N' : (0, dimZ//4), 'S' : (dimX//2, dimZ//4), 'E' : (dimX//4, dimZ//2), 'W' : (dimX//4, 0),
                  'NE' : (0, dimZ//2), 'NW' : (0, 0), 'SE' : (dimX//2, dimZ//2), 'SW' : (dimX//2, 0)}
