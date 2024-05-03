@@ -294,8 +294,39 @@ class Lattice2D():
 
         return is_corrected
     
-def choose_gauge_fixing_biased(lat : Lattice2D, err_type : str, dom_err_rate : float):
-    pass
+def choose_gauge_fixing_biased(lat : Lattice2D, err_type : str, dom_err_rate : float, total_err_rate : float):
+    dimX = lat.dimX 
+    dimZ = lat.dimZ 
+    coloring = np.zeros((dimX - 1, dimZ - 1))
+    sample_err_rate = dom_err_rate/total_err_rate
+    if (err_type == 'X'):
+        coloring = np.random.choice([-1,1], size=((dimX - 1)*(dimZ - 1)), p=[sample_err_rate, 1 - sample_err_rate])
+    elif (err_type == 'Z'):
+        coloring = np.random.choice([1,-1], size=((dimX - 1)*(dimZ - 1)), p=[sample_err_rate, 1 - sample_err_rate])
+    else:
+        coloring = np.random.choice([-1,1], size=((dimX - 1)*(dimZ - 1)), p=[0.5,0.5])
+    lat.color_lattice(coloring)
+    return lat
+
+def choose_guage_fixing_asym(lat : Lattice2D, dir : Tuple):
+    dimX = lat.dimX - 1
+    dimZ = lat.dimZ - 1
+    coloring = np.zeros(dimX * dimZ)
+    locs = np.random.choice(list(range(dimX * dimZ)), dimX * dimZ, replace=False)
+    for loc in locs:
+        coloring[loc] = np.random.choice([-1,1])
+    x_region = {1 : (0,int(4/7* dimX)), -1 : (int(3/7 * dimX), dimX)}
+    z_region = {1 : (int(3/7 * dimZ), dimZ), -1 : (0,int(4/7 * dimZ))}
+    x_dir = x_region[dir[1]]
+    z_dir = z_region[dir[0]]
+    x_len = x_dir[1] - x_dir[0]
+    z_len = z_dir[1] - z_dir[0]
+    sub_lat_coloring = np.reshape(compass_to_surface(x_len + 1, z_len + 1).colors, (x_len, z_len))
+    coloring = np.reshape(coloring, (dimX, dimZ))
+    coloring[x_dir[0]:x_dir[1],z_dir[0]:z_dir[1]] = sub_lat_coloring
+    lat.color_lattice(coloring.flatten())
+    return lat
+            
 
 def random_pauli(num_qubits : int, rates : list):
     assert rates[0] + rates[1] + rates[2] <= 1, "Error rate must not exceed 1"
@@ -311,6 +342,30 @@ def random_pauli(num_qubits : int, rates : list):
         else:
             paulis.append('_')
     return ''.join(paulis)
+
+def random_pauli_asym(dimX : int, dimZ : int, rates : list, dir : Tuple):
+    assert rates[0] + rates[1] + rates[2] <= 1, "Error rate, must not exceed 1"
+    new_rates = np.array(rates)/sum(rates)
+    x_region = {1 : (0,int(3/6 * dimX)), 0 : (int(1/6 * dimX), int(4/6 * dimX)), -1 : (int(2/6 * dimX), dimX)}
+    z_region = {1 : (int(2/6 * dimZ), dimZ), 0 : (int(1/6 * dimZ), int(4/6 * dimZ)), -1 : (0,int(3/6 * dimZ))}
+    x_dir = x_region[dir[1]]
+    z_dir = z_region[dir[0]]
+    paulis = np.reshape(np.array(list(random_pauli(dimX * dimZ, rates))), (dimX, dimZ))
+    for i in range(dimX * dimZ):
+        x = random.uniform(0,1)
+        pos = (np.random.randint(x_dir[0], x_dir[1]), np.random.randint(z_dir[0], z_dir[1]))
+        if x < new_rates[0]:
+            paulis[pos[0]][pos[1]] = 'X'
+        elif x <= new_rates[0] + new_rates[1]:
+            paulis[pos[0]][pos[1]] = 'Y'
+        elif x <= new_rates[0] + new_rates[1] + new_rates[2]:
+            paulis[pos[0]][pos[1]] = 'Z'
+        else:
+            # paulis[pos[0]][pos[1]] = np.random.choice(['X','Y','Z'])
+            paulis[pos[0]][pos[1]] = '_'
+    return ''.join(list(paulis.flatten()))
+
+
 
 def print_pauli_error(error_str, dimX, dimZ):
     for i in range(dimX):
@@ -374,4 +429,7 @@ def stretched_ds_code_coloring(lat, xi, dir):
                     so_far = 0
     lat.color_lattice(coloring.flatten())
     return lat
+
+def ballistic_compass_coloring(lat, xi, dir):
+    pass 
     
