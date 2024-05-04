@@ -322,6 +322,8 @@ def choose_guage_fixing_asym(lat : Lattice2D, dir : Tuple):
     x_len = x_dir[1] - x_dir[0]
     z_len = z_dir[1] - z_dir[0]
     sub_lat_coloring = np.reshape(compass_to_surface(x_len + 1, z_len + 1).colors, (x_len, z_len))
+    # sub_lat = Lattice2D(x_len + 1, z_len + 1)
+    # sub_lat_coloring = np.reshape(sub_lat.colors, (x_len, z_len))
     coloring = np.reshape(coloring, (dimX, dimZ))
     coloring[x_dir[0]:x_dir[1],z_dir[0]:z_dir[1]] = sub_lat_coloring
     lat.color_lattice(coloring.flatten())
