@@ -346,6 +346,14 @@ def twisted_product(stab_binary, pauli_binary):
     L = int(len(stab_binary)/2)
     return (stab_binary[:L]@pauli_binary[L:] + stab_binary[L:]@pauli_binary[:L]) % 2
 
+def twisted_prod_mat(stab_matrix, pauli_binary):
+    """
+    take twisted product of stabilizer with pauli to calculate commutator 
+    """
+    L = int(len(pauli_binary)/2)
+    return (stab_matrix[:, :L]@pauli_binary[L:] + stab_matrix[:, L:]@pauli_binary[:L]) % 2
+
+
 def compass_to_surface(dimX,dimZ,start='X'):
     if start == 'X':
         first_two_cells = [1,-1]
